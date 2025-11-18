@@ -1,0 +1,15 @@
+taxid,parent_taxid,rank,scientific_name,common_name
+1,1,no_rank,Life,
+2,1,no_rank,Cellular organisms,
+2759,2,superkingdom,Eukaryota,
+33154,2759,no_rank,Opisthokonta,
+33208,33154,kingdom,Metazoa,animals
+7711,33208,phylum,Chordata,chordates
+40674,7711,class,Mammalia,mammals
+9443,40674,order,Primates,
+314295,9443,family,Hominidae,great apes
+9605,314295,genus,Homo,
+9606,9605,species,Homo sapiens,human
+9596,314295,genus,Pan,
+9598,9596,species,Pan troglodytes,chimpanzee
+

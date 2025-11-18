@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Taxonomic Lineage Viewer (Kùzu-Wasm)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    header {
+      padding: 0.75rem 1rem;
+      background: #111827;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    #main {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .panel {
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      background: #f9fafb;
+      min-height: 0;
+    }
+
+    .panel h2 {
+      font-size: 0.95rem;
+      margin: 0 0 0.25rem;
+    }
+
+    #log {
+      font-size: 0.8rem;
+      max-height: 150px;
+      overflow: auto;
+      background: #111827;
+      color: #e5e7eb;
+      padding: 0.5rem;
+      border-radius: 0.375rem;
+      white-space: pre-line;
+    }
+
+    #progress-container {
+      width: 100%;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      height: 10px;
+    }
+
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #3b82f6;
+      transition: width 0.25s ease-out;
+    }
+
+    #progress-label {
+      font-size: 0.8rem;
+      color: #374151;
+    }
+
+    #search-form {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    #search-input {
+      flex: 1;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.375rem;
+      border: 1px solid #d1d5db;
+      font-size: 0.9rem;
+    }
+
+    button {
+      border-radius: 0.375rem;
+      border: none;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
+
+    button[disabled] {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    #search-results {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 160px;
+      overflow: auto;
+      font-size: 0.85rem;
+    }
+
+    #search-results li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.15rem 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    #search-results span {
+      flex: 1;
+      margin-right: 0.5rem;
+    }
+
+    #selected-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      max-height: 140px;
+      overflow: auto;
+      font-size: 0.85rem;
+    }
+
+    #selected-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.15rem 0;
+    }
+
+    #selected-list button {
+      background: #ef4444;
+    }
+
+    #vis-container {
+      position: relative;
+      background: white;
+      border-radius: 0.5rem;
+      border: 1px solid #e5e7eb;
+      padding: 0.5rem;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #vis-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    #vis {
+      flex: 1;
+      border: 1px dashed #e5e7eb;
+      border-radius: 0.375rem;
+      background: #f9fafb;
+    }
+
+    .node circle {
+      stroke: #111827;
+      stroke-width: 1px;
+      fill: white;
+    }
+
+    .node text {
+      font-size: 0.7rem;
+      dominant-baseline: middle;
+    }
+
+    .link {
+      stroke: #9ca3af;
+      stroke-width: 1px;
+      fill: none;
+    }
+
+    #status-badge {
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    #status-badge.ready {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    @media (max-width: 900px) {
+      #main {
+        grid-template-columns: 1fr;
+      }
+
+      #vis {
+        height: 360px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Taxonomic Lineage Viewer (Kùzu-Wasm)</h1>
+    <span id="status-badge">Initializing DB…</span>
+  </header>
+
+  <div id="main">
+    <section class="panel">
+      <h2>Database Initialization</h2>
+      <div id="progress-container">
+        <div id="progress-bar"></div>
+      </div>
+      <div id="progress-label">Starting…</div>
+      <div id="log"></div>
+
+      <h2>Search & Select Species</h2>
+      <form id="search-form">
+        <input id="search-input" placeholder="Search scientific name…" />
+        <button id="search-button" type="submit" disabled>Search</button>
+      </form>
+      <ul id="search-results"></ul>
+
+      <h2>Selected Species</h2>
+      <ul id="selected-list"></ul>
+    </section>
+
+    <section id="vis-container">
+      <div id="vis-header">
+        <span>Lineage visualization</span>
+        <span id="vis-hint" style="font-size: 0.75rem; color:#6b7280;">
+          Add species on the left to see their lineages.
+        </span>
+      </div>
+      <svg id="vis" width="800" height="600"></svg>
+    </section>
+  </div>
+
+  <!-- D3 -->
+  <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+
+  <!-- Kùzu-Wasm from CDN (async/worker version) -->
+  <script type="module">
+    import kuzu_wasm from "https://unpkg.com/@kuzu/kuzu-wasm@latest/dist/kuzu-browser.js";
+
+    const progressBar = document.getElementById("progress-bar");
+    const progressLabel = document.getElementById("progress-label");
+    const logElem = document.getElementById("log");
+    const statusBadge = document.getElementById("status-badge");
+
+    const searchForm = document.getElementById("search-form");
+    const searchInput = document.getElementById("search-input");
+    const searchButton = document.getElementById("search-button");
+    const searchResults = document.getElementById("search-results");
+    const selectedList = document.getElementById("selected-list");
+    const visSvg = d3.select("#vis");
+
+    let kuzu;
+    let db;
+    let conn;
+    let initialized = false;
+
+    // State: { taxid, name, path: [ {taxid, name, rank, parent_taxid}, ... ] }
+    const selectedSpecies = [];
+
+    function setProgress(p, label) {
+      progressBar.style.width = `${Math.round(p * 100)}%`;
+      progressLabel.textContent = label;
+      log(label);
+    }
+
+    function log(msg) {
+      logElem.textContent += msg + "\n";
+      logElem.scrollTop = logElem.scrollHeight;
+    }
+
+    async function loadCsvIntoFS(vfsPath, url) {
+      log(`Fetching ${url}…`);
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        throw new Error(`Failed to fetch ${url}: ${resp.statusText}`);
+      }
+      const buf = await resp.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      await kuzu.FS.writeFile(vfsPath, bytes);
+      log(`Wrote ${bytes.length.toLocaleString()} bytes to ${vfsPath}`);
+    }
+
+    async function initDb() {
+      try {
+        setProgress(0.05, "Loading Kùzu-Wasm module…");
+        kuzu = await kuzu_wasm();                         // :contentReference[oaicite:2]{index=2}
+
+        setProgress(0.15, "Creating in-memory database…");
+        db = await kuzu.Database("");                     // in-memory DB
+        conn = await kuzu.Connection(db);
+
+        // NOTE: For real NCBI taxonomy (millions of rows) you may want to
+        // ship a pre-built Kùzu DB instead of CSV; this is a conceptual sketch.
+        setProgress(0.25, "Fetching taxonomy CSV…");
+        await loadCsvIntoFS("/taxon.csv", "data/taxon.csv"); // adjust path
+
+        setProgress(0.45, "Creating schema in Kùzu…");
+        await conn.execute(`
+          CREATE NODE TABLE IF NOT EXISTS Taxon(
+            taxid INT64,
+            parent_taxid INT64,
+            rank STRING,
+            scientific_name STRING,
+            common_name STRING,
+            PRIMARY KEY (taxid)
+          );
+        `);
+
+        setProgress(0.6, "Copying taxonomy data into Kùzu…");
+        await conn.execute(`
+          COPY Taxon FROM 'taxon.csv' (HEADER=true, DELIM=',');
+        `);
+
+        setProgress(0.9, "Running sanity check query…");
+        const res = await conn.execute(`
+          MATCH (t:Taxon)
+          RETURN COUNT(*) AS n
+        `);
+        const rows = JSON.parse(res.table.toString());
+        log(`Loaded ${rows[0].n.toLocaleString()} taxa into Kùzu.`);
+
+        setProgress(1.0, "Ready.");
+        initialized = true;
+        statusBadge.textContent = "DB ready";
+        statusBadge.classList.add("ready");
+        searchButton.disabled = false;
+      } catch (err) {
+        console.error(err);
+        log("ERROR: " + err.message);
+        progressLabel.textContent = "Initialization failed.";
+        statusBadge.textContent = "Init failed";
+      }
+    }
+
+    // --- Query helpers ----------------------------------------------------
+
+    async function searchSpeciesByName(query) {
+      if (!initialized) return [];
+
+      const q = query.trim();
+      if (!q) return [];
+
+      // Simple search on scientific_name; you can extend to common_name.
+      const cypher = `
+        MATCH (t:Taxon)
+        WHERE LOWER(t.scientific_name) CONTAINS LOWER('${q.replace(/'/g, "''")}')
+        RETURN t.taxid AS taxid,
+               t.scientific_name AS name,
+               t.rank AS rank,
+               t.common_name AS common_name
+        ORDER BY name
+        LIMIT 30;
+      `;
+      const res = await conn.execute(cypher);
+      const rows = JSON.parse(res.table.toString());
+      return rows;
+    }
+
+    async function getLineageForTaxid(taxid) {
+      // We climb parent_taxid in JS; avoids relying on variable-length path syntax.
+      const path = [];
+      let currentId = Number(taxid);
+      const visited = new Set();
+
+      while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
+
+        const res = await conn.execute(`
+          MATCH (t:Taxon)
+          WHERE t.taxid = ${currentId}
+          RETURN t.taxid AS taxid,
+                 t.parent_taxid AS parent_taxid,
+                 t.rank AS rank,
+                 t.scientific_name AS name,
+                 t.common_name AS common_name;
+        `);
+        const rows = JSON.parse(res.table.toString());
+        if (rows.length === 0) break;
+
+        const node = rows[0];
+        path.push(node);
+
+        if (!node.parent_taxid || node.parent_taxid === node.taxid) {
+          break; // root
+        }
+        currentId = Number(node.parent_taxid);
+      }
+
+      // root -> leaf
+      return path.reverse();
+    }
+
+    // --- UI: search & selection -------------------------------------------
+
+    searchForm.addEventListener("submit", async (evt) => {
+      evt.preventDefault();
+      if (!initialized) return;
+
+      const q = searchInput.value;
+      searchButton.disabled = true;
+      searchButton.textContent = "Searching…";
+      searchResults.innerHTML = "";
+
+      try {
+        const rows = await searchSpeciesByName(q);
+        if (!rows.length) {
+          searchResults.innerHTML = "<li>No results</li>";
+        } else {
+          for (const row of rows) {
+            const li = document.createElement("li");
+            const label = document.createElement("span");
+            label.textContent = row.name +
+              (row.common_name ? ` (${row.common_name})` : "");
+
+            const addBtn = document.createElement("button");
+            addBtn.type = "button";
+            addBtn.textContent = "Add";
+            addBtn.addEventListener("click", async () => {
+              await addSpecies(row.taxid, row.name, row.common_name);
+            });
+
+            li.appendChild(label);
+            li.appendChild(addBtn);
+            searchResults.appendChild(li);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        log("Search error: " + err.message);
+      } finally {
+        searchButton.disabled = false;
+        searchButton.textContent = "Search";
+      }
+    });
+
+    async function addSpecies(taxid, name, commonName) {
+      // Avoid duplicates
+      if (selectedSpecies.some((s) => s.taxid === taxid)) return;
+
+      log(`Fetching lineage for ${name}…`);
+      const path = await getLineageForTaxid(taxid);
+      selectedSpecies.push({
+        taxid,
+        name,
+        commonName,
+        path,
+      });
+      renderSelectedList();
+      renderLineages();
+    }
+
+    function removeSpecies(taxid) {
+      const idx = selectedSpecies.findIndex((s) => s.taxid === taxid);
+      if (idx >= 0) {
+        selectedSpecies.splice(idx, 1);
+        renderSelectedList();
+        renderLineages();
+      }
+    }
+
+    function renderSelectedList() {
+      selectedList.innerHTML = "";
+      for (const s of selectedSpecies) {
+        const li = document.createElement("li");
+        const label = document.createElement("span");
+        label.textContent = s.name +
+          (s.commonName ? ` (${s.commonName})` : "");
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.textContent = "Remove";
+        removeBtn.addEventListener("click", () => removeSpecies(s.taxid));
+
+        li.appendChild(label);
+        li.appendChild(removeBtn);
+        selectedList.appendChild(li);
+      }
+
+      document.getElementById("vis-hint").textContent =
+        selectedSpecies.length
+          ? "Each column is the lineage of one selected species."
+          : "Add species on the left to see their lineages.";
+    }
+
+    // --- D3 visualization -------------------------------------------------
+
+    function renderLineages() {
+      const width = +visSvg.attr("width");
+      const height = +visSvg.attr("height");
+      visSvg.selectAll("*").remove();
+
+      if (selectedSpecies.length === 0) return;
+
+      const margin = { top: 30, right: 180, bottom: 30, left: 60 };
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+
+      const g = visSvg
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+      // Flatten into nodes & links; treat each lineage as its own column.
+      const nodes = [];
+      const links = [];
+      const idToNode = new Map();
+
+      selectedSpecies.forEach((s, colIndex) => {
+        s.path.forEach((n, depth) => {
+          const nodeId = `${colIndex}-${depth}`;
+          const node = {
+            id: nodeId,
+            taxid: n.taxid,
+            name: n.name,
+            commonName: n.common_name,
+            rank: n.rank,
+            colIndex,
+            depth,
+          };
+          idToNode.set(nodeId, node);
+          nodes.push(node);
+
+          if (depth > 0) {
+            links.push({
+              source: `${colIndex}-${depth - 1}`,
+              target: nodeId,
+            });
+          }
+        });
+      });
+
+      const maxDepth = d3.max(nodes, (d) => d.depth) ?? 0;
+
+      const xScale = d3
+        .scalePoint()
+        .domain(d3.range(selectedSpecies.length))
+        .range([0, innerWidth])
+        .padding(0.5);
+
+      const yScale = d3
+        .scaleLinear()
+        .domain([0, maxDepth])
+        .range([0, innerHeight]);
+
+      nodes.forEach((n) => {
+        n.x = xScale(n.colIndex);
+        n.y = yScale(n.depth);
+      });
+
+      // Links
+      g.selectAll("line.link")
+        .data(links)
+        .enter()
+        .append("line")
+        .attr("class", "link")
+        .attr("x1", (d) => idToNode.get(d.source).x)
+        .attr("y1", (d) => idToNode.get(d.source).y)
+        .attr("x2", (d) => idToNode.get(d.target).x)
+        .attr("y2", (d) => idToNode.get(d.target).y);
+
+      // Nodes
+      const nodeG = g
+        .selectAll("g.node")
+        .data(nodes)
+        .enter()
+        .append("g")
+        .attr("class", "node")
+        .attr("transform", (d) => `translate(${d.x},${d.y})`);
+
+      nodeG
+        .append("circle")
+        .attr("r", 6);
+
+      nodeG
+        .append("title")
+        .text(
+          (d) =>
+            `${d.name} (${d.rank || "unranked"})` +
+            (d.commonName ? `\n${d.commonName}` : "")
+        );
+
+      nodeG
+        .append("text")
+        .attr("x", 9)
+        .attr("dy", "0")
+        .text((d) => d.rank || "")
+        .attr("fill", "#4b5563");
+
+      // Species labels at the bottom
+      const speciesLabels = g
+        .selectAll("text.species-label")
+        .data(selectedSpecies)
+        .enter()
+        .append("text")
+        .attr("class", "species-label")
+        .attr("x", (_s, i) => xScale(i))
+        .attr("y", innerHeight + 18)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "0.75rem")
+        .attr("fill", "#111827")
+        .text(
+          (s) =>
+            s.name + (s.commonName ? ` (${s.commonName})` : "")
+        );
+    }
+
+    // Kick off initialization
+    initDb();
+  </script>
+</body>
+</html>
+
