@@ -429,25 +429,26 @@
 
     // --- UI: search & selection -------------------------------------------
 
-    searchForm.addEventListener("submit", async (evt) => {
-      evt.preventDefault();
-      if (!initialized) return;
-
-      const q = searchInput.value;
-      searchButton.disabled = true;
-      searchButton.textContent = "Searching…";
+    async function runLiveSearch(q) {
       searchResults.innerHTML = "";
+
+      if (!q) {
+        // Clear results when input is empty
+        return;
+      }
 
       try {
         const rows = await searchSpeciesByName(q);
+
         if (!rows.length) {
           searchResults.innerHTML = "<li>No results</li>";
         } else {
           for (const row of rows) {
             const li = document.createElement("li");
+
             const label = document.createElement("span");
-            label.textContent = row.name +
-              (row.common_name ? ` (${row.common_name})` : "");
+            label.textContent =
+              row.name + (row.common_name ? ` (${row.common_name})` : "");
 
             const addBtn = document.createElement("button");
             addBtn.type = "button";
@@ -464,10 +465,21 @@
       } catch (err) {
         console.error(err);
         log("Search error: " + err.message);
-      } finally {
-        searchButton.disabled = false;
-        searchButton.textContent = "Search";
       }
+    }
+
+    let searchTimeout = null;
+
+    searchInput.addEventListener("input", () => {
+      if (!initialized) return;
+
+      clearTimeout(searchTimeout);
+
+      // Debounce: wait 250ms after the user stops typing
+      searchTimeout = setTimeout(async () => {
+        const q = searchInput.value.trim();
+        await runLiveSearch(q);
+      }, 250);
     });
 
     async function addSpecies(taxid, name, commonName) {
