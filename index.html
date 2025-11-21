@@ -702,7 +702,8 @@
         .attr("class", "species-label")
         .attr("x", (d) => d.x)
         .attr("y", innerHeight + 18)
-        .attr("text-anchor", "middle")
+        .attr("text-anchor", "start")
+        .attr("transform", d => `rotate(45, ${d.x}, ${innerHeight + 18})`)
         .attr("font-size", "0.75rem")
         .attr("fill", "#111827")
         .text((d) => d.name);
