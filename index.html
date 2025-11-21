@@ -519,7 +519,7 @@
 
       if (selectedSpecies.length === 0) return;
 
-      const margin = { top: 30, right: 180, bottom: 30, left: 60 };
+      const margin = { top: 30, right: 200, bottom: 40, left: 80 };
       const innerWidth = width - margin.left - margin.right;
       const innerHeight = height - margin.top - margin.bottom;
 
@@ -527,65 +527,103 @@
         .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
-      // Flatten into nodes & links; treat each lineage as its own column.
-      const nodes = [];
-      const links = [];
-      const idToNode = new Map();
+      // 1) Build merged nodes (by taxid) and parent→child links
+      const nodeByTaxid = new Map(); // taxid -> node
+      const leafTaxidBySpecies = new Map(); // speciesIndex -> leaf taxid
 
-      selectedSpecies.forEach((s, colIndex) => {
-        s.path.forEach((n, depth) => {
-          const nodeId = `${colIndex}-${depth}`;
-          const node = {
-            id: nodeId,
-            taxid: n.taxid,
-            name: n.name,
-            commonName: n.common_name,
-            rank: n.rank,
-            colIndex,
-            depth,
-          };
-          idToNode.set(nodeId, node);
-          nodes.push(node);
+      selectedSpecies.forEach((s, speciesIndex) => {
+        const path = s.path; // root -> leaf
+        if (!path || !path.length) return;
+
+        // remember leaf for labels
+        const leaf = path[path.length - 1];
+        leafTaxidBySpecies.set(speciesIndex, leaf.taxid);
+
+        path.forEach((n, depth) => {
+          let node = nodeByTaxid.get(n.taxid);
+          if (!node) {
+            node = {
+              taxid: n.taxid,
+              parent_taxid: n.parent_taxid,
+              rank: n.rank,
+              name: n.name,
+              commonName: n.common_name,
+              speciesIndices: new Set(),
+              depth,          // will be refined to min depth we see
+              children: new Set(),
+            };
+            nodeByTaxid.set(n.taxid, node);
+          }
+
+          node.speciesIndices.add(speciesIndex);
+          node.depth = Math.min(node.depth, depth);
 
           if (depth > 0) {
-            links.push({
-              source: `${colIndex}-${depth - 1}`,
-              target: nodeId,
-            });
+            const parentTaxid = path[depth - 1].taxid;
+            const parentNode = nodeByTaxid.get(parentTaxid);
+            if (parentNode) {
+              parentNode.children.add(n.taxid);
+            }
           }
         });
       });
 
+      const nodes = Array.from(nodeByTaxid.values());
+
+      // 2) Compute max depth
       const maxDepth = d3.max(nodes, (d) => d.depth) ?? 0;
 
-      const xScale = d3
+      // 3) Assign x-position based on which species go through the node
+      //    First give each species a base x (leaf position)
+      const speciesIndices = d3.range(selectedSpecies.length);
+      const xLeafScale = d3
         .scalePoint()
-        .domain(d3.range(selectedSpecies.length))
+        .domain(speciesIndices)
         .range([0, innerWidth])
         .padding(0.5);
 
+      const xLeaf = new Map();
+      speciesIndices.forEach((i) => xLeaf.set(i, xLeafScale(i)));
+
+      nodes.forEach((n) => {
+        const xs = Array.from(n.speciesIndices).map((i) => xLeaf.get(i));
+        const avgX = xs.reduce((a, b) => a + b, 0) / xs.length;
+        n.x = avgX;
+      });
+
+      // 4) y-position by depth
       const yScale = d3
         .scaleLinear()
         .domain([0, maxDepth])
         .range([0, innerHeight]);
 
       nodes.forEach((n) => {
-        n.x = xScale(n.colIndex);
         n.y = yScale(n.depth);
       });
 
-      // Links
+      // 5) Build unique links from parent to child (merged)
+      const links = [];
+      nodes.forEach((parent) => {
+        parent.children.forEach((childTaxid) => {
+          const child = nodeByTaxid.get(childTaxid);
+          if (child) {
+            links.push({ source: parent, target: child });
+          }
+        });
+      });
+
+      // 6) Draw links (shared vertical segments appear once)
       g.selectAll("line.link")
         .data(links)
         .enter()
         .append("line")
         .attr("class", "link")
-        .attr("x1", (d) => idToNode.get(d.source).x)
-        .attr("y1", (d) => idToNode.get(d.source).y)
-        .attr("x2", (d) => idToNode.get(d.target).x)
-        .attr("y2", (d) => idToNode.get(d.target).y);
+        .attr("x1", (d) => d.source.x)
+        .attr("y1", (d) => d.source.y)
+        .attr("x2", (d) => d.target.x)
+        .attr("y2", (d) => d.target.y);
 
-      // Nodes
+      // 7) Draw nodes
       const nodeG = g
         .selectAll("g.node")
         .data(nodes)
@@ -602,34 +640,42 @@
         .append("title")
         .text(
           (d) =>
-            `${d.name} (${d.rank || "unranked"})` +
+            `${d.name || "(unnamed)"} (${d.rank || "unranked"})` +
             (d.commonName ? `\n${d.commonName}` : "")
         );
 
+      // Label with scientific name next to node
       nodeG
         .append("text")
         .attr("x", 9)
-        .attr("dy", "0")
-        .text((d) => d.name || "")
-        .attr("fill", "#4b5563");
+        .attr("dy", "0.32em")
+        .text((d) => d.name || d.taxid)
+        .attr("fill", "#111827")
+        .attr("font-size", "0.7rem");
 
-      // Species labels at the bottom
-      const speciesLabels = g
-        .selectAll("text.species-label")
-        .data(selectedSpecies)
+      // 8) Species labels at bottom aligned with their leaf node
+      const speciesLabelsData = selectedSpecies.map((s, i) => {
+        const leafTaxid = leafTaxidBySpecies.get(i);
+        const leafNode = nodeByTaxid.get(leafTaxid);
+        return {
+          x: leafNode ? leafNode.x : xLeafScale(i),
+          name: s.name + (s.commonName ? ` (${s.commonName})` : ""),
+        };
+      });
+
+      g.selectAll("text.species-label")
+        .data(speciesLabelsData)
         .enter()
         .append("text")
         .attr("class", "species-label")
-        .attr("x", (_s, i) => xScale(i))
+        .attr("x", (d) => d.x)
         .attr("y", innerHeight + 18)
         .attr("text-anchor", "middle")
         .attr("font-size", "0.75rem")
         .attr("fill", "#111827")
-        .text(
-          (s) =>
-            s.name + (s.commonName ? ` (${s.commonName})` : "")
-        );
+        .text((d) => d.name);
     }
+
 
     // Kick off initialization
     initDb();
