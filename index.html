@@ -372,6 +372,7 @@
       const cypher = `
         MATCH (t:Taxon)
         WHERE LOWER(t.scientific_name) CONTAINS LOWER('${q.replace(/'/g, "''")}')
+          AND t.rank = 'species'
         RETURN t.taxid AS taxid,
                t.scientific_name AS name,
                t.rank AS rank,
