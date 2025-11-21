@@ -368,28 +368,25 @@
       const q = query.trim();
       if (!q) return [];
 
-      const qLower = q.toLowerCase();
-
+      // Simple search on scientific_name; you can extend to common_name.
       const cypher = `
         MATCH (t:Taxon)
-        WHERE t.rank = 'species'
-          AND (
-            LOWER(t.scientific_name) CONTAINS $q
-            OR (
-              t.common_name IS NOT NULL
-              AND LOWER(t.common_name) CONTAINS $q
-            )
+        WHERE (
+            LOWER(t.scientific_name) CONTAINS LOWER('${q.replace(/'/g, "''")}')
+            OR
+            LOWER(t.common_name) CONTAINS LOWER('${q.replace(/'/g, "''")}')
           )
+          AND t.rank = 'species'
         RETURN t.taxid AS taxid,
-              t.scientific_name AS name,
-              t.rank AS rank,
-              t.common_name AS common_name
+               t.scientific_name AS name,
+               t.rank AS rank,
+               t.common_name AS common_name
         ORDER BY name
         LIMIT 30;
       `;
-
-      const res = await conn.execute(cypher, { q: qLower });
-      return JSON.parse(res.table.toString());
+      const res = await conn.execute(cypher);
+      const rows = JSON.parse(res.table.toString());
+      return rows;
     }
 
     async function getLineageForTaxid(taxid) {
