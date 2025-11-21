@@ -178,6 +178,8 @@
       border: 1px dashed #e5e7eb;
       border-radius: 0.375rem;
       background: #f9fafb;
+      width: 100%;
+      height: 100%;
     }
 
     .node circle {
@@ -258,7 +260,7 @@
           Add species on the left to see their lineages.
         </span>
       </div>
-      <svg id="vis" width="800" height="600"></svg>
+      <svg id="vis"></svg>
     </section>
   </div>
 
@@ -534,8 +536,10 @@
     // --- D3 visualization -------------------------------------------------
 
     function renderLineages() {
-      const width = +visSvg.attr("width");
-      const height = +visSvg.attr("height");
+      const visNode = visSvg.node();
+      const rect = visNode.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
       visSvg.selectAll("*").remove();
 
       if (selectedSpecies.length === 0) return;
