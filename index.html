@@ -371,7 +371,11 @@
       // Simple search on scientific_name; you can extend to common_name.
       const cypher = `
         MATCH (t:Taxon)
-        WHERE LOWER(t.scientific_name) CONTAINS LOWER('${q.replace(/'/g, "''")}')
+        WHERE (
+            LOWER(t.scientific_name) CONTAINS LOWER('${q.replace(/'/g, "''")}')
+            OR
+            LOWER(t.common_name) CONTAINS LOWER('${q.replace(/'/g, "''")}')
+          )
           AND t.rank = 'species'
         RETURN t.taxid AS taxid,
                t.scientific_name AS name,
