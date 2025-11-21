@@ -191,6 +191,10 @@
       dominant-baseline: middle;
     }
 
+    .node:hover {
+      cursor: pointer;
+    }
+
     .link {
       stroke: #9ca3af;
       stroke-width: 1px;
@@ -657,6 +661,29 @@
         .text((d) => d.name || d.taxid)
         .attr("fill", "#111827")
         .attr("font-size", "0.7rem");
+
+      // Click on node → open Wikipedia page
+      nodeG.on("click", (event, d) => {
+        // Special case for NCBI root node (taxid 1 -> LUCA),
+        // same behavior as the Flask version’s README describes.
+        let title;
+        if (d.taxid === 1) {
+          title = "Last universal common ancestor";
+        } else if (d.name) {
+          title = d.name;
+        } else if (d.commonName) {
+          title = d.commonName;
+        } else {
+          return; // nothing to open
+        }
+
+        // Build Wikipedia URL
+        const wikiTitle = title.trim().replace(/\s+/g, "_");
+        const url = "https://en.wikipedia.org/wiki/" + encodeURIComponent(wikiTitle);
+
+        // Open in new tab, no-opener for safety
+        window.open(url, "_blank", "noopener");
+      });
 
       // 8) Species labels at bottom aligned with their leaf node
       const speciesLabelsData = selectedSpecies.map((s, i) => {
