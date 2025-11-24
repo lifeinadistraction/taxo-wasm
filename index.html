@@ -259,7 +259,7 @@
       <h2>Search & Select Species</h2>
       <form id="search-form">
         <input id="search-input" placeholder="Search scientific name…" />
-        <button id="search-button" type="submit" disabled>Search</button>
+        <button id="search-button" type="button" disabled>Search</button>
       </form>
       <ul id="search-results"></ul>
 
@@ -498,6 +498,23 @@
         const q = searchInput.value.trim();
         await runLiveSearch(q);
       }, 250);
+    });
+
+    // prevent form submit from reloading the page, handle Enter key
+    searchForm.addEventListener("submit", async (evt) => {
+      evt.preventDefault();
+      if (!initialized) return;
+      const q = searchInput.value.trim();
+      if (!q) return;
+      await runLiveSearch(q);
+    });
+
+    // optional: make the Search button trigger the same logic
+    searchButton.addEventListener("click", async () => {
+      if (!initialized) return;
+      const q = searchInput.value.trim();
+      if (!q) return;
+      await runLiveSearch(q);
     });
 
     async function addSpecies(taxid, name, commonName) {
