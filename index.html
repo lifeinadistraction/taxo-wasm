@@ -134,11 +134,25 @@
       margin-right: 0.5rem;
     }
 
+    #selected-wrapper {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;   /* grow to use leftover space */
+      min-height: 0;    /* allow child to scroll */
+    }
+
+    #selected-wrapper h2 {
+      margin-top: 0.5rem;
+      margin-bottom: 0.25rem;
+      flex: 0 0 auto;
+    }
+
     #selected-list {
       list-style: none;
       padding: 0;
       margin: 0;
-      max-height: 140px;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow: auto;
       font-size: 0.85rem;
     }
@@ -249,8 +263,10 @@
       </form>
       <ul id="search-results"></ul>
 
-      <h2>Selected Species</h2>
-      <ul id="selected-list"></ul>
+      <div id="selected-wrapper">
+        <h2>Selected Species</h2>
+        <ul id="selected-list"></ul>
+      </div>
     </section>
 
     <section id="vis-container">
